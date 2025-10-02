@@ -1,0 +1,12 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+
+ces:
+  kafka:
+    topics:
+      - dev-customer-events
+      - dev-order-events
+      - dev-notification-events
+  websocket:
+    base-url: ws://localhost:8080/ws

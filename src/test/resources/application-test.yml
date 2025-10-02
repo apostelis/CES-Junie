@@ -1,0 +1,13 @@
+spring:
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers}
+    consumer:
+      group-id: ces-test-consumer-group
+      auto-offset-reset: earliest
+
+ces:
+  kafka:
+    topics:
+      - test-topic
+  websocket:
+    base-url: ws://localhost:8080/ws

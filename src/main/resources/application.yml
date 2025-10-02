@@ -1,0 +1,20 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: ces-consumer-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: true
+      properties:
+        spring.json.trusted.packages: "*"
+
+ces:
+  kafka:
+    topics:
+      - customer-events
+      - order-events
+      - notification-events
+  websocket:
+    base-url: ws://localhost:8080/ws
