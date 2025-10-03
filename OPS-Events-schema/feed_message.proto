@@ -1,0 +1,592 @@
+syntax = "proto3";
+
+package com.lnw.expressway.messages.v1;
+import "google/protobuf/timestamp.proto";
+
+option java_outer_classname = "FeedMessageProto";
+
+ /* ***************************************************
+  --------   C O M M O N    M E S S A G E --------
+  ************************************************** */
+
+message FeedMessage {
+    Header header = 1;
+
+    oneof payload {
+        TransPayload  trans_payload = 101;
+        LoginPayload  login_payload = 102;
+        PaymentTransPayload  payment_trans_payload = 103;
+        PropertyAuditPayload  property_audit_payload = 104;
+        RegistrationPayload  registration_payload = 105;
+        AccountCreationPayload  account_creation_payload = 106;
+        GamingLimitPayload  gaming_limit_payload = 107;
+        GamingLimitAuditPayload  gaming_limit_audit_payload = 108;
+        GamingLimitHitPayload  gaming_limit_hit_payload = 109;
+        BlocklistPayload  block_list_payload = 110;
+        BlocklistLogPayload  block_list_log_payload = 111;
+        LoginLimitSettingPayload  login_limit_setting_payload = 112;
+        LoginLimitHitPayload  login_limit_hit_payload = 113;
+        WalletLimitHitPayload  wallet_limit_hit_payload = 114;
+        WalletLimitAuditPayload  wallet_limit_audit_payload = 115;
+        AccountRestrictionReasonAuditPayload account_restriction_reason_audit_payload = 116;
+        RealityCheckPayload reality_check_payload = 117;
+        UpdateAccountPayload update_account_payload = 118;
+        LogoutPayload  logout_payload = 119;
+        ExtendSessionPayload extend_session_payload = 120;
+    }
+}
+
+
+ /* **********************************
+  --------   H E A D E R S --------
+  ********************************* */
+message Header {
+
+    /* Reference to a System where the Message originated from */
+    message SystemRef {
+
+        enum Product {
+            UnknownProduct = 0;
+            OPS = 1;
+            OGS = 2;
+        }
+
+        enum System {
+            UnknownSystem = 0;
+            Account = 1;
+            Wallet  = 2;
+            Payments = 3;
+        }
+
+        Product product = 1;
+        System system = 2;
+
+        /* The name of the tenant (aka "operator") for multi-tenant installations */
+        string tenant = 3;
+    }
+
+    /* This class provides the means to uniquely identify a message.
+     *  The combination of key+sequence_id will be globally unique
+     *  -  uuid : globally unique identifier
+     *  -  key  : a sequence key
+     *  -  sequence_id : an ever-increasing number per key
+     *
+     *
+     *  - reference : (optional) in multi-topic installations, the "reference" (when present)
+     *                can be used to identify messages (from different topics) that relate to
+     *                the same "action"
+     *
+     */
+    message Identifier {
+        enum SequencingKey {
+            UnknownKey  = 0;
+
+            OPS_Account = 101;
+            OPS_Payment = 102;
+
+            // Reserved for future
+            OPS_Wallet = 103;
+            OPS_SelfExclusion = 104;
+            OPS_PaymentRuleProcessor = 105;
+            OPS_RulesEngine = 106;
+        }
+
+        SequencingKey key = 1;
+        uint64 sequence_id = 2;
+        string uuid = 3;
+
+        string reference = 4;
+    }
+
+    /*
+     *   The MessageType can be used to make the parsing of the "FeedMessage.payload" easier.
+     *   Each MessageType will correspond to exacty one of the available payloads. The index of
+     *   the MessageType enum will match with the index of the "FeedMessage.payload"
+     *   (E.g. "PaymentTransaction=103" will always have a "PaymentTransPayload=103")
+     */
+    enum MessageType {
+        UnknownMessageType = 0;
+
+        WalletTransaction = 101;   // Player Transactions in the Online Wallet (OPS-Account)
+        Login = 102;               // Player Logged-in successfully OR attempted a Login which has failed
+        PaymentTransaction = 103;  // Player Transaction with a Payment Provider (through OPS-Payment)
+        PropertyAudit = 104;       // A Player Property has changed. *Deprecated in favour of UpdateAccount*
+        Registration = 105;        // A Player Account has been validated
+        AccountCreation = 106;     // A Player Account has been created
+        GamingLimit = 107;         // A Gaming Limit has been set (or changed)
+        GamingLimitAudit = 108;    // A set of Gaming Limits has been set (or changed)
+        GamingLimitHit = 109;      // A Gaming Limit has been hit
+        Blocklist = 110;           // A BlockList has been set, changed or deleted
+        BlocklistLog = 111;        // A BlockList has been set, changed or deleted (+audit info)
+        LoginLimitSetting = 112;   // A Login Limit has been set (or changed)
+        LoginLimitHit = 113;       // A Login Limit has been hit
+        WalletLimitHit = 114;      // A Wallet Limit has been hit
+        WalletLimitAudit = 115;    // A Wallet Limit has been set (or changed)
+        AccountRestrictionReasonAudit = 116;  // An AccountRestrictionReason (MARCM) has been raised or removed
+        RealityCheck = 117;        // A PlayerNotification message
+        UpdateAccount = 118;       // A set of Player Properties has been changed
+        Logout = 119;              // A Player has been logged out
+        ExtendSession = 120;       // A Player's session has been extended
+    }
+
+    /* The timestamp (creation time) of the message */
+    google.protobuf.Timestamp  timestamp = 1;
+
+    MessageType message_type = 2;
+    Identifier identifier = 3;
+    SystemRef system_ref = 4;
+
+}
+
+
+ /* ************************************
+  --------   P A Y L O A D S --------
+  ************************************* */
+
+/*
+ *  Common message fields
+ *
+ *   - account_id: For messages related to a specific player, this field will
+ *                 contain the ID of the player (a 9-digit number). This stands true even for
+ *                 cases where the operation is done by a program or admin user on behalf of the player.
+ *
+ *   - currency:   For messages involving monetary amounts, the currency is always represented
+ *                 in a 3-character ISO-4217 code.
+ *                 https://en.wikipedia.org/wiki/ISO_4217
+ *
+ *   - unique IDs: Numeric unique IDs like 'trans_id', 'login_id' and 'trace_id' follow the same
+ *                 timestamp-like format. E.g. 2028010301300000000
+ */
+
+/*
+ *Payload for Player Transactions in the Online Wallet (OPS-Account)
+*/
+message TransPayload {
+    uint64 trans_id = 1;
+    uint32 account_id = 2;
+    string trans_type = 3;
+    string status = 4; /* Deprecated. This field is maintained only for backwards compatibility.
+	                    * Avoid using it in new implementations/integrations.
+						*   Values:
+						*      'C' = Completed
+	                    *      'P' = Pending
+                        *      'A' = Aborted
+                        *      '' = not known/not relevant
+	                    */
+    double delta_cash = 5;
+    double delta_bonus = 6;
+    double delta_goods = 7;
+    int32 delta_tickets = 8;
+    double delta_gross = 9;
+    double delta_miles = 10;
+    double delta_pending = 11;
+    double delta_bonus_pending = 12;
+    double delta_turnover = 13;
+    double delta_pot = 14;
+    string currency = 15;
+    optional double home_rate = 16;
+    string operator_name = 17;
+    uint32 account_type = 18;
+    string channel = 19;
+    optional uint32 bonus_group_id = 20;
+    uint32 subsystem_id = 21;
+    string reference = 22;
+    string subreference = 23;
+    int32 cat1 = 24;
+    int32 cat2 = 25;
+    int32 cat3 = 26;
+    string game = 27;
+    string config = 28;
+    string round = 29;
+    optional string description = 30;
+    optional string win = 31; /* Relevant mostly to RESULT and ADJRRESULT transaction types.
+  	                           *  Values:
+	                           *    'L' = Lose
+							   *    'W' = Win
+							   *    'R' = Refund
+							   *    ''  = not known/not relevant
+	                           */
+    optional double bal_cash = 32;
+    optional double bal_goods = 33;
+    optional double bal_bonus = 34;
+    optional double bal_winnings = 35;
+    optional double bal_mileage = 36;
+    optional int32 bal_tickets = 37;
+    optional uint64 login_id = 38;
+    int32 game_provider_id = 39;
+    optional double bonus_amount_spent = 40;
+    optional double freebet_amount_spent = 41;
+    map<string, string> trans_properties = 42;
+}
+
+
+/*
+ *Payload for a Player Account Validation event in OPS PAM
+*/
+message RegistrationPayload {
+    uint32   account_id = 1;
+    string  account_name = 2;
+    map<string, string> account_properties = 3;
+}
+
+
+/*
+ *Payload for a Player Account Creation event in OPS PAM
+*/
+message AccountCreationPayload {
+    uint32   account_id = 1;
+    string  account_name = 2;
+    map<string, string> account_properties = 3;
+}
+
+
+/*
+ *Payload for a Player successfull Login event OR a failed Login attempt
+*/
+message LoginPayload {
+    uint64   login_id = 1;
+    uint32   account_id = 2;
+    google.protobuf.Timestamp  login_time = 3;
+    google.protobuf.Timestamp  end_time = 4; /* Deprecated. This field doesn't provide any useful info.
+	                                          * It has been added to maintain backwards compatibility
+	                                          */
+
+    google.protobuf.Timestamp  logout_time = 5; /*
+	                                             * Relevant mostly to successfull Log-ins. It is the initial timestamp when
+												 * the Login session is expected to expire. Note that session expiration may be
+												 * postponed through player actions. This is reflected in the ExtendSession message
+	                                             */
+    string  ip = 6;
+    string  indirect_ip = 7;
+    string  channel = 8;
+    string  client_info = 9;
+    bool    is_failed_login = 10;
+}
+
+
+/*
+ * Payload for a Login Limit hit event
+ */
+message LoginLimitHitPayload {
+    uint32   account_id = 1;
+    google.protobuf.Timestamp created = 2;
+    uint64   trace_id = 3;
+    int64   setting_id = 4;
+    int64   period_id = 5;
+    string  limit_type = 6; /* Values:
+	                         *   "Day"
+							 *   "Week"
+							 *   "Month"
+	                         */
+    int64   limit_value = 7;
+}
+
+
+/*
+ * Payload for the event of a Player adding (or changing) a Login Limit.
+ */
+message LoginLimitSettingPayload {
+    uint32   account_id = 1;
+    string  limit_type = 2; /* Values:
+	                         *   "Day"
+							 *   "Week"
+							 *   "Month"
+	                         */
+    optional int64   limit_value = 3;
+    google.protobuf.Timestamp creation_time = 4;
+    google.protobuf.Timestamp planned_activation_time = 5;
+    google.protobuf.Timestamp actual_activation_time = 6;
+    string  state = 7;/* Values:
+	                   *   "Active"
+					   *   "Pending"
+					   *   "Obsolete"
+					   *   "Removed"
+	                   */
+    string  comment = 8;
+}
+
+
+/*
+ * Aggregated Payload for the event of a Player adding (or changing) a set of Gaming Limits.
+ * Notes:
+ *   1. While this message is not yet deprecated, it is recommended to avoid using it.
+ *      Use the GamingLimit (with GamingLimitPayload) instead.
+ *   2. In case of a gaming limit change, this payload will contain all gaming limits for that subsystem; not just the ones that changed.
+ *   3. Absent values in the optional fields below, indicate that those limits have been either removed or never been set by the player.
+ */
+message GamingLimitAuditPayload {
+    uint32   account_id = 1;
+    uint64   trace_id = 2;
+    int32   subsystem_id = 3;
+    string  home_currency = 4;
+    optional double  day_turnovover = 5;
+    optional double  week_turnover = 6;
+    optional double  month_turnover = 7;
+    optional double  day_loss = 8;
+    optional double  week_loss = 9;
+    optional double  month_loss = 10;
+    optional int32   day_time = 11;
+    optional int32   week_time = 12;
+    optional int32   month_time = 13;
+    int32   is_systemlimit = 14;
+    int64   set_by = 15;
+}
+
+
+/*
+ * Payload for a Gaming Limit hit event
+ */
+message GamingLimitHitPayload {
+    uint32   account_id = 1;
+    int64   hit_time = 2;
+    uint32   subsystem_id = 3;
+    string  home_currency = 4;
+    string  period = 5; /* Values:
+	                     *   "Day"
+						 *   "Week"
+						 *   "Month"
+	                     */
+    string  limit_type = 6; /* Values:
+	                         *   "Time"
+							 *   "Turnover"
+							 *   "Loss"
+	                         */
+    double  limit_value = 7;
+    double  amount = 8;
+}
+
+
+/*
+ * Payload for the event of a Player adding (or changing) a Gaming Limit.
+ */
+message GamingLimitPayload {
+    uint32    account_id = 1;
+    uint32    subsystem_id = 2;
+    google.protobuf.Timestamp valid_from = 3;
+    string   period = 4; /* Values:
+	                      *   "Day"
+					      *   "Week"
+						  *   "Month"
+	                      */
+    string   limit_type = 5; /* Values:
+	                         *   "Time"
+							 *   "Turnover"
+							 *   "Loss"
+	                         */
+    string   limit_value = 6;
+}
+
+
+/*
+ * Payload for a Player property change event.
+ * Deprecated in favour of UpdateAccountPayload.
+ */
+message PropertyAuditPayload {
+    uint32  account_id = 1;
+    uint64  trace_id = 2;
+    string  property_name = 3;
+    string  property_value = 4;
+}
+
+
+/*
+ * Payload for a Block List (i.e. a list of not allowed player properties) addition, modification
+ * or deletion event for an operator.
+ */
+message BlocklistLogPayload {
+    int64   id = 1;
+    string  action = 2;
+    int64   block_list_id = 3;
+    google.protobuf.Timestamp  created = 4;
+    google.protobuf.Timestamp  modified = 5;
+    optional google.protobuf.Timestamp  expiry = 6;
+    string  operator_name = 7;
+    string  property_name = 8;
+    string  property_value = 9;
+    string  reason = 10;
+    int32   set_by = 11;
+    string  who = 12;
+}
+
+
+/*
+ * Deprecated. Use BlocklistLogPayload instead
+ */
+message BlocklistPayload {
+    int64   id = 1;
+    google.protobuf.Timestamp  created = 2;
+    google.protobuf.Timestamp  modified = 3;
+    optional google.protobuf.Timestamp  expiry = 4;
+    string  operator_name = 5;
+    string  property_name = 6;
+    string  property_value = 7;
+    string  reason = 8;
+}
+
+
+/*
+ * Payload for a Wallet Limit hit event
+ *
+ * Caveat: The absent (but implied) currency of the amounts is
+ *         the player's currency. In a future version the currency
+ *         will be added in a distinct field.
+ */
+message WalletLimitHitPayload {
+    uint32   account_id = 1;
+    int64   hit_time = 2;
+    double  limit_value = 3;
+    double  rejected_value = 4;
+}
+
+
+/*
+ * Payload for the event of a Wallet Limit being set or changed
+ *
+ * Caveat: The absent (but implied) currency of the amount is the
+ *         player's currency. In a future version the currency
+ *         will be added in a distinct field.
+ */
+message WalletLimitAuditPayload {
+    uint32   account_id = 1;
+    uint64  trace_id = 2;
+    string  limit_value = 3;
+    int64   set_by = 4;
+    int32   enforced = 5;
+    optional google.protobuf.Timestamp  valid_from = 6;
+}
+
+
+/*
+ * Payload for the event of an Account Restriction flag being raised or put down
+ */
+message AccountRestrictionReasonAuditPayload {
+    uint32   account_id = 1;
+    uint64  trace_id = 2;
+    string  restriction_reason = 3;
+    string  description = 4;
+    optional google.protobuf.Timestamp  expiry_date = 5;
+    optional google.protobuf.Timestamp  auto_expiry_date = 6;
+    string  state = 7;  /* Values:
+	                     *   "Set"
+						 *   "Removed"
+	                     */
+}
+
+
+/*
+ * Payload for the event of a player Transaction with a Payment Provider (through OPS-Payment)
+ * being initiated or progressed.
+ */
+message PaymentTransPayload
+{
+    int64   id = 1;
+    google.protobuf.Timestamp  trans_time = 2; // transaction's initiation timestamp (immutable)
+    google.protobuf.Timestamp  payment_timestamp = 3; // transaction's last update timestamp
+    string  provider = 4;
+    int32   provider_id = 5;
+    string  config = 6;
+    int32   config_id =7;
+    string  method = 8;
+    int32   method_id = 9;
+    string  trans_type = 10;
+    string  status = 11;
+    uint32  account_id = 12;
+    double  amount = 13;
+    double  fee = 14;
+    string  currency = 15;
+    string  channel = 16;
+    optional string  user_message = 17;
+    optional string  provider_ref = 18;
+    optional string  bonus_code = 19;
+    optional int64   ReferenceTransId = 20; /* Relevant only for Refund transactions.
+	                                         * The TransId of the refunded Deposit
+	                                         */
+    string  flags = 21; /* a delimited string of flags.
+	                     *  Delimiter: '|'
+						 *  Flags:
+						 *    "Reviewed"
+						 *    "WithdrawalLock"
+						 *    "OperatorRejected"
+	                     */
+    optional string  extReference = 22;
+    optional int64  extAccountID = 23;
+
+    /*
+    * Provider specific transaction details
+    */
+    message ProviderData {
+
+        message SwishData {
+            string mobile=1;
+        }
+
+        oneof data {
+            SwishData swish_data = 1;
+        }
+    }
+
+    optional ProviderData provider_data=24;
+}
+
+
+/*
+ * Payload for a Reality Check event being sent to a player
+ */
+message RealityCheckPayload
+{
+    uint32   account_id = 1;
+    int64   reference = 2;
+    string  action = 3; /* Values:
+	                     *   "Logout"   = The player ended the session via the session reminder
+						 *   "CONTINUE" = The player chose to continue playing
+						 *   "STOP"     = The player chose to stop playing, but remained logged-in
+	                     */
+    google.protobuf.Timestamp  update_time = 4;
+}
+
+
+/*
+ * Payload for an Update Account event (i.e. a set of player properties changed as
+ * a result of an UpdateAccount API call or an internal action)
+ */
+message UpdateAccountPayload {
+
+    message UpdatedAccountProperty {
+        string  new_value = 1;
+        optional string  previous_value = 2;
+    }
+
+    uint32  account_id = 1;
+    uint64  trace_id = 2;
+    map<string, UpdatedAccountProperty> updated_properties = 3;
+    optional uint32 set_by_account_id = 4; //In case of an on-behalf call, this field will have the accountID of the Admin or Program user
+}
+
+
+/*
+ * Payload for a Player logout event.
+ * This event may be triggred by both an explicit Logout API call from a player
+ * OR from a terminated abandoned session.
+ *
+ * Note: Abandoned sessions are terminated lazily. A Logout/LogoutPayload message for an
+ *       abandoned session may come several hours after the expiration time, or not at all.
+ */
+message LogoutPayload {
+    uint64   login_id = 1;
+    uint32   account_id = 2;
+    google.protobuf.Timestamp  login_time = 3;
+    google.protobuf.Timestamp  logout_time = 4;
+    string  channel = 5;
+}
+
+
+/*
+ * Payload for a Player session expiration extention event.
+ */
+message ExtendSessionPayload {
+    uint64   login_id = 1;
+    uint32   account_id = 2;
+    google.protobuf.Timestamp  login_time = 3;
+    google.protobuf.Timestamp  session_end_time = 4;
+    string  channel = 5;
+}

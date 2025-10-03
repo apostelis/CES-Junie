@@ -4,6 +4,9 @@ spring:
     consumer:
       group-id: ces-test-consumer-group
       auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: com.ces.infrastructure.kafka.FeedMessageDeserializer
+      enable-auto-commit: true
 
 ces:
   kafka:

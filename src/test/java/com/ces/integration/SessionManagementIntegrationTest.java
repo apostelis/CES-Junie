@@ -12,12 +12,17 @@ import com.ces.domain.model.Session;
 import com.ces.domain.model.SessionId;
 import com.ces.domain.model.SessionNotFoundException;
 import com.ces.domain.service.SessionRegistry;
+import com.google.protobuf.Timestamp;
+import com.lnw.expressway.messages.v1.FeedMessageProto.FeedMessage;
+import com.lnw.expressway.messages.v1.FeedMessageProto.Header;
+import com.lnw.expressway.messages.v1.FeedMessageProto.LoginPayload;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -59,6 +64,41 @@ class SessionManagementIntegrationTest {
         );
     }
 
+    // Helper method to create test FeedMessage
+    private FeedMessage createTestFeedMessage(int accountId) {
+        Instant now = Instant.now();
+        Timestamp timestamp = Timestamp.newBuilder()
+                .setSeconds(now.getEpochSecond())
+                .setNanos(now.getNano())
+                .build();
+
+        return FeedMessage.newBuilder()
+                .setHeader(Header.newBuilder()
+                        .setTimestamp(timestamp)
+                        .setMessageType(Header.MessageType.Login)
+                        .setIdentifier(Header.Identifier.newBuilder()
+                                .setKey(Header.Identifier.SequencingKey.OPS_Account)
+                                .setSequenceId(123456789L)
+                                .setUuid("test-uuid")
+                                .build())
+                        .setSystemRef(Header.SystemRef.newBuilder()
+                                .setProduct(Header.SystemRef.Product.OPS)
+                                .setSystem(Header.SystemRef.System.Account)
+                                .setTenant("test-tenant")
+                                .build())
+                        .build())
+                .setLoginPayload(LoginPayload.newBuilder()
+                        .setLoginId(2025010301300000000L)
+                        .setAccountId(accountId)
+                        .setLoginTime(timestamp)
+                        .setLogoutTime(timestamp)
+                        .setIp("192.168.1.1")
+                        .setChannel("web")
+                        .setIsFailedLogin(false)
+                        .build())
+                .build();
+    }
+
     @Test
     void shouldCompleteFullSessionRegistrationFlow() {
         // given
@@ -98,7 +138,8 @@ class SessionManagementIntegrationTest {
         assertTrue(registrationResult.success());
 
         // given - create message
-        EventMessage message = new EventMessage(sessionId, "test data", "kafka-topic");
+        FeedMessage feedMessage = createTestFeedMessage(123456789);
+        EventMessage message = new EventMessage(sessionId, feedMessage, "kafka-topic");
         when(messageSender.sendToSession(sessionId, message)).thenReturn(true);
 
         // when - deliver message
@@ -138,7 +179,8 @@ class SessionManagementIntegrationTest {
     void shouldHandleMessageDeliveryToNonExistentSession() {
         // given
         SessionId sessionId = SessionId.generate();
-        EventMessage message = new EventMessage(sessionId, "test data", "kafka-topic");
+        FeedMessage feedMessage = createTestFeedMessage(123456789);
+        EventMessage message = new EventMessage(sessionId, feedMessage, "kafka-topic");
 
         when(sessionRegistry.findById(sessionId)).thenReturn(Optional.empty());
 
@@ -156,7 +198,8 @@ class SessionManagementIntegrationTest {
         SessionId sessionId = SessionId.generate();
         Session inactiveSession = new Session(sessionId); // Not connected
 
-        EventMessage message = new EventMessage(sessionId, "test data", "kafka-topic");
+        FeedMessage feedMessage = createTestFeedMessage(987654321);
+        EventMessage message = new EventMessage(sessionId, feedMessage, "kafka-topic");
 
         when(sessionRegistry.findById(sessionId)).thenReturn(Optional.of(inactiveSession));
 
@@ -171,7 +214,8 @@ class SessionManagementIntegrationTest {
     void shouldBroadcastToAllActiveSessions() {
         // given
         SessionId sessionId = SessionId.generate();
-        EventMessage message = new EventMessage(sessionId, "broadcast data", "kafka-topic");
+        FeedMessage feedMessage = createTestFeedMessage(111222333);
+        EventMessage message = new EventMessage(sessionId, feedMessage, "kafka-topic");
 
         // when
         deliverMessageUseCase.broadcast(message);
@@ -227,7 +271,8 @@ class SessionManagementIntegrationTest {
         assertTrue(session.isActive());
 
         // given - message for active session
-        EventMessage message = new EventMessage(sessionId, "test data", "kafka-topic");
+        FeedMessage feedMessage = createTestFeedMessage(444555666);
+        EventMessage message = new EventMessage(sessionId, feedMessage, "kafka-topic");
         when(messageSender.sendToSession(sessionId, message)).thenReturn(true);
 
         // when - deliver to active session
@@ -241,7 +286,8 @@ class SessionManagementIntegrationTest {
         assertFalse(session.isActive());
 
         // when - try to deliver to disconnected session
-        EventMessage message2 = new EventMessage(sessionId, "test data 2", "kafka-topic");
+        FeedMessage feedMessage2 = createTestFeedMessage(777888999);
+        EventMessage message2 = new EventMessage(sessionId, feedMessage2, "kafka-topic");
         deliverMessageUseCase.deliver(message2);
 
         // then - message not delivered to disconnected session
@@ -273,7 +319,8 @@ class SessionManagementIntegrationTest {
         Session activeSession = new Session(sessionId);
         activeSession.connect();
 
-        EventMessage message = new EventMessage(sessionId, "test data", "kafka-topic");
+        FeedMessage feedMessage = createTestFeedMessage(555666777);
+        EventMessage message = new EventMessage(sessionId, feedMessage, "kafka-topic");
 
         when(sessionRegistry.findById(sessionId)).thenReturn(Optional.of(activeSession));
         when(messageSender.sendToSession(sessionId, message))
@@ -308,9 +355,9 @@ class SessionManagementIntegrationTest {
         Session activeSession = new Session(sessionId);
         activeSession.connect();
 
-        String testData = "{\"key\": \"value\"}";
         String testSource = "customer-events-topic";
-        EventMessage message = new EventMessage(sessionId, testData, testSource);
+        FeedMessage feedMessage = createTestFeedMessage(888999000);
+        EventMessage message = new EventMessage(sessionId, feedMessage, testSource);
 
         when(sessionRegistry.findById(sessionId)).thenReturn(Optional.of(activeSession));
         when(messageSender.sendToSession(sessionId, message)).thenReturn(true);
@@ -320,9 +367,10 @@ class SessionManagementIntegrationTest {
 
         // then
         verify(messageSender).sendToSession(eq(sessionId), argThat(msg ->
-                msg.getData().equals(testData) &&
                 msg.getSource().equals(testSource) &&
-                msg.getTargetSessionId().equals(sessionId)
+                msg.getTargetSessionId().equals(sessionId) &&
+                msg.getFeedMessage() != null &&
+                msg.getFeedMessage().getLoginPayload().getAccountId() == 888999000
         ));
     }
 }
