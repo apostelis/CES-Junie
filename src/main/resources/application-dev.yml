@@ -4,8 +4,9 @@ spring:
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: com.ces.infrastructure.kafka.FeedMessageDeserializer
-
 ces:
+  session:
+    storage: in-memory
   kafka:
     topics:
       - dev-customer-events

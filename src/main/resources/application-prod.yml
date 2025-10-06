@@ -7,8 +7,20 @@ spring:
       enable-auto-commit: true
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: com.ces.infrastructure.kafka.FeedMessageDeserializer
-
+  data:
+    redis:
+      host: redis-cluster.example.com
+      port: 6379
+      password: ${REDIS_PASSWORD}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 20
+          max-idle: 10
+          min-idle: 5
 ces:
+  session:
+    storage: redis
   kafka:
     topics:
       - prod-customer-events

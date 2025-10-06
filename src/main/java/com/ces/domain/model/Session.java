@@ -1,5 +1,6 @@
 package com.ces.domain.model;
 
+import java.io.Serializable;
 import java.time.Instant;
 import java.util.Objects;
 
@@ -7,7 +8,9 @@ import java.util.Objects;
  * Domain entity representing a client session.
  * Tracks session lifecycle, connection status, and heartbeat information.
  */
-public class Session {
+public class Session implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
 
     private final SessionId sessionId;
     private SessionStatus status;

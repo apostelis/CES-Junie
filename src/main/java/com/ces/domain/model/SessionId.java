@@ -1,5 +1,6 @@
 package com.ces.domain.model;
 
+import java.io.Serializable;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -7,7 +8,9 @@ import java.util.UUID;
  * Value object representing a unique session identifier.
  * Ensures session IDs are cryptographically secure and non-predictable.
  */
-public final class SessionId {
+public final class SessionId implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
 
     private final String value;
 
